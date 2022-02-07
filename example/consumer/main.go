@@ -4,7 +4,7 @@ import (
     "context"
     "fmt"
     "github.com/Maximilan4/rmq"
-    "github.com/streadway/amqp"
+    amqp "github.com/rabbitmq/amqp091-go"
     "golang.org/x/sync/errgroup"
     "log"
     "time"
@@ -12,18 +12,20 @@ import (
 
 func main() {
     ctx := context.Background()
-    consumer := rmq.NewConsumer(ctx, &rmq.ConsumerConfig{
-        Dsn:          "amqp://user:user@localhost:5672",
-        WorkersCount: 3,
-        Synchronous:  false,
-    })
 
-    ctx, done := context.WithTimeout(ctx, 10*time.Second)
-    err := consumer.Connect(ctx)
+    connection := rmq.NewDefaultConnection(ctx, "amqp://test:test@localhost:5672", &rmq.ConnectionCfg{ReconnectTimeout: time.Minute})
+    tCtx, done := context.WithTimeout(ctx, 30*time.Second)
+    err := connection.Connect(tCtx)
+
     if err != nil {
         log.Fatal(err)
     }
     done()
+
+    consumer := rmq.NewConsumer(connection, &rmq.ConsumerConfig{
+        WorkersCount: 3,
+        Synchronous:  false,
+    })
 
     handler := rmq.NewDefaultMessageHandler(func(ctx context.Context, msg *amqp.Delivery) (rmq.MsgAction, error) {
         fmt.Println(msg.Body)
@@ -44,6 +46,7 @@ func main() {
     })
 
     if err = group.Wait(); err != nil {
-        log.Fatal(err)
+        //log.Fatal(err)
     }
+
 }

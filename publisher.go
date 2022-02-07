@@ -4,8 +4,8 @@ import (
     "context"
     "errors"
     "github.com/jackc/puddle"
+    amqp "github.com/rabbitmq/amqp091-go"
     "github.com/sirupsen/logrus"
-    "github.com/streadway/amqp"
     "time"
 )
 
@@ -16,20 +16,20 @@ type PublishMessage struct {
 }
 
 type Publisher struct {
-    *Connector
-    pool *puddle.Pool
-    cfg  PublisherConfig
-    ctx  context.Context
-    done context.CancelFunc
+    connection *Connection
+    pool       *puddle.Pool
+    cfg        PublisherConfig
+    ctx        context.Context
+    done       context.CancelFunc
 }
 
 // NewPublisher - publisher constructor
-func NewPublisher(ctx context.Context, cfg *PublisherConfig) *Publisher {
+func NewPublisher(connection *Connection, cfg *PublisherConfig) *Publisher {
     publisher := &Publisher{
-        Connector: &Connector{},
+        connection: connection,
     }
 
-    publisher.ctx, publisher.done = context.WithCancel(ctx)
+    publisher.ctx, publisher.done = context.WithCancel(connection.ctx)
     publisher.cfg = *cfg
 
     if publisher.cfg.MaxIdleTime == 0 {
@@ -43,26 +43,14 @@ func NewPublisher(ctx context.Context, cfg *PublisherConfig) *Publisher {
     if publisher.cfg.CleanUpInterval == 0 {
         publisher.cfg.CleanUpInterval = time.Minute
     }
+
     return publisher
 }
 
-// Pool - channels pool getter
-func (p *Publisher) Pool() *puddle.Pool {
-    return p.pool
-}
-
-func (p *Publisher) Connect(ctx context.Context) error {
-    //establish main connection
-    err := p.Connector.Connect(ctx, p.cfg.Dsn)
-    if err != nil {
-        return err
-    }
-
-    // init channels pool
+func (p *Publisher) Init() error {
     p.pool = puddle.NewPool(p.chanInit, p.chanClose, p.cfg.MaxChannelsCount)
-
     // init first idle channel
-    err = p.pool.CreateResource(ctx)
+    err := p.pool.CreateResource(p.ctx)
     if err != nil {
         p.pool.Close()
         return err
@@ -72,16 +60,20 @@ func (p *Publisher) Connect(ctx context.Context) error {
     return nil
 }
 
+// Pool - channels pool getter
+func (p *Publisher) Pool() *puddle.Pool {
+    return p.pool
+}
+
 // Close - closes active connection and channels pool
 func (p *Publisher) Close() {
     p.pool.Close()
-    p.conn.Close()
     p.done()
 }
 
 // Publish - publish a message to exchange
 func (p *Publisher) Publish(ctx context.Context, msg *PublishMessage) error {
-    if p.conn.IsClosed() {
+    if p.connection.IsClosed() {
         return errors.New("connection is not ready")
     }
 
@@ -127,7 +119,7 @@ func (p *Publisher) chanInit(ctx context.Context) (interface{}, error) {
         case <-ctx.Done():
             return nil, ctx.Err()
         default:
-            channel, err = p.conn.Channel()
+            channel, err = p.connection.Channel()
             if err != nil {
                 logrus.WithField("err", err).Warningf("unable to init rmq channel")
                 continue
@@ -142,7 +134,7 @@ func (p *Publisher) chanInit(ctx context.Context) (interface{}, error) {
 //background - producer background tasks
 func (p *Publisher) background() {
     ticker := time.NewTicker(p.cfg.CleanUpInterval)
-    errChan := p.NotifyClose(make(chan *amqp.Error))
+    errChan := p.connection.NotifyClose(make(chan *amqp.Error))
     var notifyErr *amqp.Error
     for {
         select {
@@ -151,19 +143,6 @@ func (p *Publisher) background() {
                 continue
             }
 
-            p.pool.Close()
-            if p.cfg.ReconnectTimeout == 0 {
-                logrus.Fatal(notifyErr)
-            }
-
-            ctx, done := context.WithTimeout(p.ctx, p.cfg.ReconnectTimeout)
-            err := p.Connect(ctx)
-            done()
-            if err != nil {
-                p.done()
-                logrus.Error(err)
-                continue
-            }
         case tick := <-ticker.C:
             logrus.Infof("clean up event at %s", tick)
             for _, resource := range p.pool.AcquireAllIdle() {
