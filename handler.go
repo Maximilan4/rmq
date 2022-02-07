@@ -4,7 +4,7 @@ import (
     "context"
     "errors"
     "fmt"
-    "github.com/streadway/amqp"
+    amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type MsgAction int
@@ -13,12 +13,12 @@ const (
     ActionAck MsgAction = 1 + iota
     ActionNack
     ActionRequeue
+    ActionReject
 )
 
-type BeforeHandleFunc func (ctx context.Context, msg *amqp.Delivery) error
-type HandleFunc func (ctx context.Context, msg *amqp.Delivery) (MsgAction, error)
-type AfterHandleFunc func (ctx context.Context, msg *amqp.Delivery, action MsgAction) error
-
+type BeforeHandleFunc func(ctx context.Context, msg *amqp.Delivery) error
+type HandleFunc func(ctx context.Context, msg *amqp.Delivery) (MsgAction, error)
+type AfterHandleFunc func(ctx context.Context, msg *amqp.Delivery, action MsgAction) error
 
 //MessageHandler - Base message handler interface
 type MessageHandler interface {
@@ -100,14 +100,11 @@ func (dmh *DefaultMessageHandler) DoMsgAction(msg *amqp.Delivery, action MsgActi
         err = msg.Nack(false, false)
     case ActionRequeue:
         err = msg.Nack(false, true)
+    case ActionReject:
+        err = msg.Reject(false)
     default:
         err = fmt.Errorf("wrong action received: %d", action)
     }
 
     return
 }
-
-
-
-
-

@@ -4,7 +4,7 @@ import (
     "context"
     "fmt"
     "github.com/Maximilan4/rmq"
-    "github.com/streadway/amqp"
+    amqp "github.com/rabbitmq/amqp091-go"
     "log"
     "math/rand"
     "sync"
@@ -13,14 +13,20 @@ import (
 
 func main() {
     mainCtx := context.Background()
-    publisher := rmq.NewPublisher(mainCtx, &rmq.PublisherConfig{
-        Dsn:              "amqp://user:pass@localhost:5672",
+
+    connection := rmq.NewDefaultConnection(mainCtx, "amqp://test:test@localhost:5672", &rmq.ConnectionCfg{ReconnectTimeout: time.Minute})
+    tCtx, done := context.WithTimeout(mainCtx, 30*time.Second)
+    err := connection.Connect(tCtx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    done()
+
+    publisher := rmq.NewPublisher(connection, &rmq.PublisherConfig{
         MaxChannelsCount: 10,
     })
+    err = publisher.Init()
 
-    ctx, done := context.WithTimeout(mainCtx, time.Second*30)
-    err := publisher.Connect(ctx)
-    done()
     if err != nil {
         log.Fatal(err)
     }
@@ -47,18 +53,6 @@ func main() {
             if err != nil {
                 fmt.Println(err)
                 return
-            }
-
-            err = publisher.Publish(mainCtx, &rmq.PublishMessage{
-                ExchangeName: "test2",
-                RoutingKey:   "",
-                Publishing: amqp.Publishing{
-                    ContentType: "application/octet-stream",
-                    Body:        []byte("test 2"),
-                },
-            })
-            if err != nil {
-                fmt.Println(err)
             }
         }(wg)
     }
