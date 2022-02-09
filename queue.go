@@ -1,19 +1,13 @@
-package schema
+package rmq
 
 import (
     "fmt"
     amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type (
-    QueueDeleteParams struct {
-        Name                      string
-        IfUnused, IfEmpty, NoWait bool
-    }
-    QueueManager struct {
-        channel *amqp.Channel
-    }
-)
+type QueueManager struct {
+    channel *amqp.Channel
+}
 
 func (qs *QueueManager) Inspect(name string) (q amqp.Queue, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
@@ -42,7 +36,7 @@ func (qs *QueueManager) Purge(name string, noWait bool) (msgCount int, err error
     return
 }
 
-func (qs *QueueManager) DeleteMulti(deleteParams ...*QueueDeleteParams) (err error) {
+func (qs *QueueManager) DeleteMulti(deleteParams ...*DeleteParams) (err error) {
     for _, params := range deleteParams {
         _, err = qs.Delete(params)
 
@@ -54,7 +48,7 @@ func (qs *QueueManager) DeleteMulti(deleteParams ...*QueueDeleteParams) (err err
     return
 }
 
-func (qs *QueueManager) Delete(params *QueueDeleteParams) (msgCount int, err error) {
+func (qs *QueueManager) Delete(params *DeleteParams) (msgCount int, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         err = fmt.Errorf("unable to delete queue on closed or empty channel")
         return
