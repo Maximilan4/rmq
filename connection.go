@@ -3,6 +3,7 @@ package rmq
 import (
     "context"
     "fmt"
+    "github.com/Maximilan4/rmq/schema"
     amqp "github.com/rabbitmq/amqp091-go"
     "github.com/sirupsen/logrus"
 )
@@ -43,6 +44,15 @@ func NewConnection(ctx context.Context, cfg *ConnectionCfg, constructor AmqpConn
         constructor: constructor,
         cfg:         cfg,
     }
+}
+
+func (cn *Connection) Schema() (*schema.Schema, error) {
+    channel, err := cn.Channel()
+    if err != nil {
+        return nil, err
+    }
+
+    return schema.Get(channel), nil
 }
 
 // Conn - connection getter
