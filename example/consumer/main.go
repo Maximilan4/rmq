@@ -32,7 +32,7 @@ func main() {
         return rmq.ActionAck, nil
     })
 
-    group, ctx := errgroup.WithContext(ctx)
+    group, _ := errgroup.WithContext(ctx)
     group.Go(func() error {
         return consumer.StartWorkersGroup(&rmq.ConsumeParams{
             Queue: "test",
@@ -46,7 +46,7 @@ func main() {
     })
 
     if err = group.Wait(); err != nil {
-        //log.Fatal(err)
+        log.Fatal(err)
     }
 
 }
