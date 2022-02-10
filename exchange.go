@@ -6,6 +6,11 @@ import (
 )
 
 type (
+    ExchangeBindParams struct {
+        Destination, Key, Source string
+        NoWait                   bool
+        Args                     amqp.Table
+    }
     ExchangeManager struct {
         channel *amqp.Channel
     }
@@ -53,7 +58,12 @@ func (em *ExchangeManager) Declare(declareParams *DeclareParams) (err error) {
         return
     }
 
-    err = em.channel.ExchangeDeclare(
+    declareFunc := em.channel.ExchangeDeclare
+    if declareParams.Passive {
+        declareFunc = em.channel.ExchangeDeclarePassive
+    }
+
+    err = declareFunc(
         declareParams.Name,
         declareParams.Kind.String(),
         declareParams.Durable,
@@ -70,7 +80,7 @@ func (em *ExchangeManager) Declare(declareParams *DeclareParams) (err error) {
     return
 }
 
-func (em *ExchangeManager) BindMulti(bindParams ...*BindParams) (err error) {
+func (em *ExchangeManager) BindMulti(bindParams ...*ExchangeBindParams) (err error) {
     for _, params := range bindParams {
         err = em.Bind(params)
         if err != nil {
@@ -81,7 +91,7 @@ func (em *ExchangeManager) BindMulti(bindParams ...*BindParams) (err error) {
     return
 }
 
-func (em *ExchangeManager) Bind(bindParams *BindParams) (err error) {
+func (em *ExchangeManager) Bind(bindParams *ExchangeBindParams) (err error) {
     if em.channel == nil || em.channel.IsClosed() {
         return fmt.Errorf("unable to bind exchange on closed or empty channel")
     }
@@ -101,7 +111,7 @@ func (em *ExchangeManager) Bind(bindParams *BindParams) (err error) {
     return
 }
 
-func (em *ExchangeManager) UnbindMulti(unbindParams ...*BindParams) (err error) {
+func (em *ExchangeManager) UnbindMulti(unbindParams ...*ExchangeBindParams) (err error) {
     for _, params := range unbindParams {
         err = em.Unbind(params)
         if err != nil {
@@ -112,7 +122,7 @@ func (em *ExchangeManager) UnbindMulti(unbindParams ...*BindParams) (err error) 
     return
 }
 
-func (em *ExchangeManager) Unbind(bindParams *BindParams) (err error) {
+func (em *ExchangeManager) Unbind(bindParams *ExchangeBindParams) (err error) {
     if em.channel == nil || em.channel.IsClosed() {
         return fmt.Errorf("unable to unbind exchange on closed or empty channel")
     }

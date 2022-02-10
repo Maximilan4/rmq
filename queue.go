@@ -5,9 +5,16 @@ import (
     amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type QueueManager struct {
-    channel *amqp.Channel
-}
+type (
+    QueueBindParams struct {
+        Name, Key, Exchange string
+        NoWait              bool
+        Args                amqp.Table
+    }
+    QueueManager struct {
+        channel *amqp.Channel
+    }
+)
 
 func (qs *QueueManager) Inspect(name string) (q amqp.Queue, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
@@ -80,7 +87,12 @@ func (qs *QueueManager) Declare(declareParams *DeclareParams) (q amqp.Queue, err
         return
     }
 
-    q, err = qs.channel.QueueDeclare(
+    declareFunc := qs.channel.QueueDeclare
+    if declareParams.Passive {
+        declareFunc = qs.channel.QueueDeclarePassive
+    }
+
+    q, err = declareFunc(
         declareParams.Name,
         declareParams.Durable,
         declareParams.AutoDelete,
@@ -96,7 +108,7 @@ func (qs *QueueManager) Declare(declareParams *DeclareParams) (q amqp.Queue, err
     return
 }
 
-func (qs *QueueManager) BindMulti(bindParams ...*BindParams) (err error) {
+func (qs *QueueManager) BindMulti(bindParams ...*QueueBindParams) (err error) {
     for _, params := range bindParams {
         err = qs.Bind(params)
 
@@ -108,15 +120,15 @@ func (qs *QueueManager) BindMulti(bindParams ...*BindParams) (err error) {
     return
 }
 
-func (qs *QueueManager) Bind(bindParams *BindParams) (err error) {
+func (qs *QueueManager) Bind(bindParams *QueueBindParams) (err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         return fmt.Errorf("unable to bind queue on closed or empty channel")
     }
 
     err = qs.channel.QueueBind(
-        bindParams.Destination,
+        bindParams.Name,
         bindParams.Key,
-        bindParams.Source,
+        bindParams.Exchange,
         bindParams.NoWait,
         bindParams.Args,
     )
@@ -128,7 +140,7 @@ func (qs *QueueManager) Bind(bindParams *BindParams) (err error) {
     return
 }
 
-func (qs *QueueManager) UnbindMulti(bindParams ...*BindParams) (err error) {
+func (qs *QueueManager) UnbindMulti(bindParams ...*QueueBindParams) (err error) {
     for _, params := range bindParams {
         err = qs.Unbind(params)
 
@@ -140,15 +152,15 @@ func (qs *QueueManager) UnbindMulti(bindParams ...*BindParams) (err error) {
     return
 }
 
-func (qs *QueueManager) Unbind(bindParams *BindParams) (err error) {
+func (qs *QueueManager) Unbind(bindParams *QueueBindParams) (err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         return fmt.Errorf("unable to unbind queue on closed or empty channel")
     }
 
     err = qs.channel.QueueUnbind(
-        bindParams.Destination,
+        bindParams.Name,
         bindParams.Key,
-        bindParams.Source,
+        bindParams.Exchange,
         bindParams.Args,
     )
 

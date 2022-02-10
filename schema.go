@@ -17,16 +17,11 @@ type (
         Name                      string
         IfUnused, IfEmpty, NoWait bool
     }
-    BindParams struct {
-        Destination, Key, Source string
-        NoWait                   bool
-        Args                     amqp.Table
-    }
     DeclareParams struct {
         Name string
         // Kind - for exchange only
-        Kind                        ExchangeKind
-        Durable, AutoDelete, NoWait bool
+        Kind                                 ExchangeKind
+        Durable, AutoDelete, NoWait, Passive bool
         // Internal - for exchange only
         Internal bool
         // Exclusive - for queue only
@@ -45,6 +40,7 @@ func (ek ExchangeKind) String() string {
 
 func GetSchema(channel *amqp.Channel) *Schema {
     return &Schema{
-        Queue: NewQueueManager(channel),
+        Queue:    NewQueueManager(channel),
+        Exchange: NewExchangeManager(channel),
     }
 }

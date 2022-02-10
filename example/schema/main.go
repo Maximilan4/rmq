@@ -33,8 +33,8 @@ func main() {
     }
 
     err = schema.Queue.BindMulti(
-        &rmq.BindParams{Destination: "test-q1", Key: "rk1"},
-        &rmq.BindParams{Destination: "test-q2", Key: "rk1"},
+        &rmq.QueueBindParams{Name: "test-q1", Key: "rk1", Exchange: "test-exchange"},
+        &rmq.QueueBindParams{Name: "test-q2", Key: "rk1", Exchange: "test-exchange"},
     )
     if err != nil {
         log.Fatal(err)
