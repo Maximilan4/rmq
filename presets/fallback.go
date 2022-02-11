@@ -79,17 +79,25 @@ func (fsp *FallbackStrategyPreset) setDeadLetterParams(declareParams *rmq.Declar
     }
 }
 
-func (fsp *FallbackStrategyPreset) getQueueParamsCopy(postfix string) (params *rmq.DeclareParams) {
-    *params = *fsp.Queue
+func (fsp *FallbackStrategyPreset) getQueueParamsCopy(postfix string) *rmq.DeclareParams {
+    params := *fsp.Queue
     params.Name = fmt.Sprintf("%s_%s", params.Name, postfix)
-    return
+    if fsp.Queue != nil {
+        argsCopy := make(amqp.Table)
+        for k, v := range fsp.Queue.Args {
+            argsCopy[k] = v
+        }
+        params.Args = argsCopy
+    }
+    return &params
 }
 
-func NewFallbackStrategyPreset(exchangeName string, queue, delayQueue, failedQueue *rmq.DeclareParams) *FallbackStrategyPreset {
+func NewFallbackStrategyPreset(exchangeName, rk string, queue, delayQueue, failedQueue *rmq.DeclareParams) *FallbackStrategyPreset {
     return &FallbackStrategyPreset{
-        Queue:        queue,
-        DelayQueue:   delayQueue,
-        FailedQueue:  failedQueue,
-        ExchangeName: exchangeName,
+        Queue:           queue,
+        DelayQueue:      delayQueue,
+        FailedQueue:     failedQueue,
+        ExchangeName:    exchangeName,
+        QueueRoutingKey: rk,
     }
 }
