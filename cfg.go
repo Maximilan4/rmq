@@ -5,11 +5,13 @@ import (
 )
 
 type (
+    //ConnectionCfg - main connection config, is not used, because reconnect doesnt supported
     ConnectionCfg struct {
-        // ReconnectTimeout - period, when process try to establish connection again. If set 0 -> reconnect process will not be started
+        // ReconnectTimeout - period, when process try to establish connection again.
         ReconnectTimeout time.Duration
     }
 
+    //ConsumerConfig - main consumer config
     ConsumerConfig struct {
         // number of consuming workers
         WorkersCount int
@@ -17,6 +19,7 @@ type (
         Synchronous bool
     }
 
+    // PublisherConfig - main publisher config
     PublisherConfig struct {
         //MaxChannelsCount max channels count
         MaxChannelsCount int32

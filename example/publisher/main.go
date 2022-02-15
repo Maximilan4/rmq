@@ -14,14 +14,14 @@ import (
 func main() {
     mainCtx := context.Background()
 
-    connection := rmq.NewDefaultConnection(mainCtx, "amqp://test:test@localhost:5672", &rmq.ConnectionCfg{ReconnectTimeout: time.Minute})
-    tCtx, done := context.WithTimeout(mainCtx, 30*time.Second)
-    err := connection.Connect(tCtx)
+    // init connection with main ctx inside
+    connection := rmq.NewDefaultConnection(mainCtx, "amqp://test:test@localhost:5672")
+    err := connection.Connect(context.TODO()) // connect to broker
     if err != nil {
         log.Fatal(err)
     }
-    done()
 
+    // create a new publisher instance
     publisher := rmq.NewPublisher(connection, &rmq.PublisherConfig{
         MaxChannelsCount: 10,
     })
@@ -32,6 +32,7 @@ func main() {
     }
 
     wg := &sync.WaitGroup{}
+    // publish 10k messages with random interval
     for i := 0; i < 10000; i++ {
         wg.Add(1)
 
@@ -43,8 +44,8 @@ func main() {
                 return
             }
             err = publisher.Publish(mainCtx, &rmq.PublishMessage{
-                ExchangeName: "test",
-                RoutingKey:   "",
+                ExchangeName: "main_exchange",
+                RoutingKey:   "main",
                 Publishing: amqp.Publishing{
                     ContentType: "application/octet-stream",
                     Body:        []byte("test test"),

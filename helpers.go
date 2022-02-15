@@ -6,10 +6,12 @@ import (
     "time"
 )
 
+// durationToExpiration - convert duration to string int ms
 func durationToExpiration(duration time.Duration) string {
     return strconv.FormatInt(int64(duration/time.Millisecond), 10)
 }
 
+// createPublishingFromDelivery - creates a new amqp.Publishing from amqp.Delivery (for the next resend)
 func createPublishingFromDelivery(delivery *amqp.Delivery) amqp.Publishing {
     return amqp.Publishing{
         Headers:         delivery.Headers,
@@ -19,6 +21,8 @@ func createPublishingFromDelivery(delivery *amqp.Delivery) amqp.Publishing {
     }
 }
 
+//getExpiredMsgRetriesCount - get retry count from msg.Header["x-death"][*]["count"]
+//and msg.Header["x-death"][*]["reason"] == "expired"
 func getExpiredMsgRetriesCount(msg *amqp.Delivery) (retryCount int64) {
     if _, exists := msg.Headers["x-death"]; !exists {
         return

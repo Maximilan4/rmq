@@ -4,14 +4,11 @@ import (
     "context"
     "github.com/Maximilan4/rmq"
     "log"
-    "time"
 )
 
 func main() {
     ctx := context.Background()
-    connection := rmq.NewDefaultConnection(ctx, "amqp://test:test@localhost:5672", &rmq.ConnectionCfg{
-        ReconnectTimeout: time.Minute,
-    })
+    connection := rmq.NewDefaultConnection(ctx, "amqp://test:test@localhost:5672")
     err := connection.Connect(context.TODO())
 
     if err != nil {

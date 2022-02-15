@@ -6,16 +6,19 @@ import (
 )
 
 type (
+    // QueueBindParams - amqp.Channel().QueueBind(...) params
     QueueBindParams struct {
         Name, Key, Exchange string
         NoWait              bool
         Args                amqp.Table
     }
+    //QueueManager - queue manager
     QueueManager struct {
         channel *amqp.Channel
     }
 )
 
+//Inspect - amqp.Channel().QueueInspect(...) wrap
 func (qs *QueueManager) Inspect(name string) (q amqp.Queue, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         err = fmt.Errorf("unable to inspect queue on closed or empty channel")
@@ -29,6 +32,7 @@ func (qs *QueueManager) Inspect(name string) (q amqp.Queue, err error) {
     return
 }
 
+// Purge - amqp.Channel().QueuePurge() wrap
 func (qs *QueueManager) Purge(name string, noWait bool) (msgCount int, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         err = fmt.Errorf("unable to purge queue on closed or empty channel")
@@ -43,6 +47,7 @@ func (qs *QueueManager) Purge(name string, noWait bool) (msgCount int, err error
     return
 }
 
+// DeleteMulti - deletes for than one queue
 func (qs *QueueManager) DeleteMulti(deleteParams ...*DeleteParams) (err error) {
     for _, params := range deleteParams {
         _, err = qs.Delete(params)
@@ -55,6 +60,7 @@ func (qs *QueueManager) DeleteMulti(deleteParams ...*DeleteParams) (err error) {
     return
 }
 
+//Delete - deletes queue
 func (qs *QueueManager) Delete(params *DeleteParams) (msgCount int, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         err = fmt.Errorf("unable to delete queue on closed or empty channel")
@@ -69,6 +75,7 @@ func (qs *QueueManager) Delete(params *DeleteParams) (msgCount int, err error) {
     return
 }
 
+//DeclareMulti - declares more than one queue
 func (qs *QueueManager) DeclareMulti(declareParams ...*DeclareParams) (err error) {
     for _, params := range declareParams {
         _, err = qs.Declare(params)
@@ -81,6 +88,7 @@ func (qs *QueueManager) DeclareMulti(declareParams ...*DeclareParams) (err error
     return
 }
 
+//Declare - declare queue
 func (qs *QueueManager) Declare(declareParams *DeclareParams) (q amqp.Queue, err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         err = fmt.Errorf("unable to declare queue on closed or empty channel")
@@ -108,6 +116,7 @@ func (qs *QueueManager) Declare(declareParams *DeclareParams) (q amqp.Queue, err
     return
 }
 
+//BindMulti - bind more than one queue
 func (qs *QueueManager) BindMulti(bindParams ...*QueueBindParams) (err error) {
     for _, params := range bindParams {
         err = qs.Bind(params)
@@ -120,6 +129,7 @@ func (qs *QueueManager) BindMulti(bindParams ...*QueueBindParams) (err error) {
     return
 }
 
+//Bind - bind queue
 func (qs *QueueManager) Bind(bindParams *QueueBindParams) (err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         return fmt.Errorf("unable to bind queue on closed or empty channel")
@@ -140,6 +150,7 @@ func (qs *QueueManager) Bind(bindParams *QueueBindParams) (err error) {
     return
 }
 
+//UnbindMulti - unbind more than one queue
 func (qs *QueueManager) UnbindMulti(bindParams ...*QueueBindParams) (err error) {
     for _, params := range bindParams {
         err = qs.Unbind(params)
@@ -152,6 +163,7 @@ func (qs *QueueManager) UnbindMulti(bindParams ...*QueueBindParams) (err error) 
     return
 }
 
+//Unbind - unbind queue
 func (qs *QueueManager) Unbind(bindParams *QueueBindParams) (err error) {
     if qs.channel == nil || qs.channel.IsClosed() {
         return fmt.Errorf("unable to unbind queue on closed or empty channel")
@@ -171,6 +183,7 @@ func (qs *QueueManager) Unbind(bindParams *QueueBindParams) (err error) {
     return
 }
 
+//NewQueueManager - QueueManager constructor
 func NewQueueManager(channel *amqp.Channel) *QueueManager {
     return &QueueManager{
         channel: channel,

@@ -8,30 +8,39 @@ import (
     "time"
 )
 
-type FallbackMessageHandler struct {
+//DelayedRetryMessageHandler - extended DefaultMessageHandler with delay logic
+type DelayedRetryMessageHandler struct {
     *DefaultMessageHandler
-    DelayRoutingKey, DelayExchangeName string
-    DelayMs                            time.Duration
-    RetriesCount                       int64
+    //DelayQueueRoutingKey - queue routing key for delayed messages resend
+    DelayQueueRoutingKey string
+    // DelayExchangeName - exchange name for delayed messages resend
+    DelayExchangeName string
+    // Delay - time interval for message expiration in delay queue
+    Delay time.Duration
+    // MaxRetriesCount - maximum count of retires before message will be rejected
+    MaxRetriesCount int64
 }
 
-//NewFallbackMessageHandler - DefaultMessageHandler constructor with custom handle func as required value
-func NewFallbackMessageHandler(
+//NewDelayedRetryMessageHandler - DefaultMessageHandler constructor with custom handle func as required value
+func NewDelayedRetryMessageHandler(
     delayExchangeName, delayRk string,
     delay time.Duration,
     retriesCount int64,
     handleFunc HandleFunc,
-) *FallbackMessageHandler {
-    return &FallbackMessageHandler{
+) *DelayedRetryMessageHandler {
+    return &DelayedRetryMessageHandler{
         DefaultMessageHandler: &DefaultMessageHandler{HandleFunc: handleFunc},
-        DelayRoutingKey:       delayRk,
+        DelayQueueRoutingKey:  delayRk,
         DelayExchangeName:     delayExchangeName,
-        DelayMs:               delay,
-        RetriesCount:          retriesCount,
+        Delay:                 delay,
+        MaxRetriesCount:       retriesCount,
     }
 }
 
-func (fmh *FallbackMessageHandler) Handle(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) (err error) {
+//Handle - redeclared DefaultMessageHandler.Handle method, main difference in error handling logic
+// if HandleFunc returns err, by default message will be rejected
+// but if message has x-death header and count < MaxRetriesCount -> message will be acknowledged and resented to delay queue
+func (fmh *DelayedRetryMessageHandler) Handle(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) (err error) {
     if err = fmh.BeforeHandle(ctx, channel, msg); err != nil {
         return
     }
@@ -49,12 +58,12 @@ func (fmh *FallbackMessageHandler) Handle(ctx context.Context, channel *amqp.Cha
 
         retriesCount := getExpiredMsgRetriesCount(msg)
 
-        if retriesCount < fmh.RetriesCount {
+        if retriesCount < fmh.MaxRetriesCount {
             newMsg := createPublishingFromDelivery(msg)
-            newMsg.Expiration = durationToExpiration(fmh.DelayMs)
+            newMsg.Expiration = durationToExpiration(fmh.Delay)
             pErr = channel.Publish(
                 fmh.DelayExchangeName,
-                fmh.DelayRoutingKey,
+                fmh.DelayQueueRoutingKey,
                 false,
                 false,
                 newMsg,
