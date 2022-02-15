@@ -11,9 +11,13 @@ import (
 type MsgAction int
 
 const (
+    //ActionAck - acknowledge message
     ActionAck MsgAction = 1 + iota
+    //ActionNack - not acknowledge without requeue
     ActionNack
+    //ActionRequeue - not acknowledge with requeue
     ActionRequeue
+    //ActionReject - reject message
     ActionReject
 )
 
