@@ -7,6 +7,7 @@ import (
     amqp "github.com/rabbitmq/amqp091-go"
 )
 
+// MsgAction - type for declaring action after msg handle (ack, nack, etc)
 type MsgAction int
 
 const (
@@ -16,34 +17,32 @@ const (
     ActionReject
 )
 
-type BeforeHandleFunc func(ctx context.Context, msg *amqp.Delivery) error
-type HandleFunc func(ctx context.Context, msg *amqp.Delivery) (MsgAction, error)
-type AfterHandleFunc func(ctx context.Context, msg *amqp.Delivery, action MsgAction) error
+type (
+    // BeforeHandleFunc - see DefaultMessageHandler for usage
+    BeforeHandleFunc func(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) error
+    // HandleFunc - see DefaultMessageHandler for usage
+    HandleFunc func(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) (MsgAction, error)
+    // AfterHandleFunc - see DefaultMessageHandler for usage
+    AfterHandleFunc func(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery, action MsgAction) error
+    //MessageHandler - Base message handler interface
+    MessageHandler interface {
+        Handle(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) error
+    }
+    //DefaultMessageHandler - default message handler
+    DefaultMessageHandler struct {
+        // BeforeHandle - custom before handle func
+        BeforeHandleFunc BeforeHandleFunc
+        // HandleFunc - custom handle func
+        HandleFunc HandleFunc
+        // AfterHandleFunc - custom after handle func
+        AfterHandleFunc AfterHandleFunc
+    }
+)
 
-//MessageHandler - Base message handler interface
-type MessageHandler interface {
-    Handle(ctx context.Context, msg *amqp.Delivery) error
-}
-
-//DefaultMessageHandler - default message handler
-type DefaultMessageHandler struct {
-    // BeforeHandle - custom before handle func
-    BeforeHandleFunc BeforeHandleFunc
-    // HandleFunc - custom handle func
-    HandleFunc HandleFunc
-    // AfterHandleFunc - custom after handle func
-    AfterHandleFunc AfterHandleFunc
-}
-
-//NewDefaultMessageHandler - DefaultMessageHandler constructor with custom handle func as required value
-func NewDefaultMessageHandler(handleFunc HandleFunc) *DefaultMessageHandler {
-    return &DefaultMessageHandler{HandleFunc: handleFunc}
-}
-
-//BeforeHandle - if BeforeHandleFunc specified -> runs it, else just logging incoming message
-func (dmh *DefaultMessageHandler) BeforeHandle(ctx context.Context, msg *amqp.Delivery) error {
+//BeforeHandle - if BeforeHandleFunc specified -> runs it
+func (dmh *DefaultMessageHandler) BeforeHandle(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) error {
     if dmh.BeforeHandleFunc != nil {
-        return dmh.BeforeHandleFunc(ctx, msg)
+        return dmh.BeforeHandleFunc(ctx, channel, msg)
     }
 
     return nil
@@ -51,41 +50,48 @@ func (dmh *DefaultMessageHandler) BeforeHandle(ctx context.Context, msg *amqp.De
 
 //Handle - main handle function, wraps result of HandleFunc to MessageResultContainer
 //if HandleFunc is nil -> returns nil, msg will be nacked by AfterHandle event
-func (dmh *DefaultMessageHandler) Handle(ctx context.Context, msg *amqp.Delivery) (err error) {
-    if err = dmh.BeforeHandle(ctx, msg); err != nil {
+func (dmh *DefaultMessageHandler) Handle(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery) (err error) {
+    if err = dmh.BeforeHandle(ctx, channel, msg); err != nil {
         return
     }
 
     if dmh.HandleFunc == nil {
-        return errors.New("HandleFunc is required for default message handler")
+        err = errors.New("HandleFunc is required for default message handler")
+        return
     }
 
-    action, err := dmh.HandleFunc(ctx, msg)
+    action, err := dmh.HandleFunc(ctx, channel, msg)
     if err != nil {
+        err = fmt.Errorf("msg handling error: %w", err)
         aErr := dmh.DoMsgAction(msg, ActionRequeue)
         if aErr != nil {
-            return fmt.Errorf("error while msg handling: %s, requeue failed: %s", err.Error(), aErr.Error())
+            err = fmt.Errorf("requeue error: %s, prev err: %w", aErr.Error(), err)
         }
 
-        return fmt.Errorf("error while msg handling: %s, requeue", err.Error())
+        return
     }
 
-    if err = dmh.AfterHandle(ctx, msg, action); err != nil {
-        return err
+    if err = dmh.AfterHandle(ctx, msg, channel, action); err != nil {
+        return
     }
 
     return
 }
 
 //AfterHandle - if AfterHandleFunc specified -> runs it, else check HandleResult for errors and ack or nack msg
-func (dmh *DefaultMessageHandler) AfterHandle(ctx context.Context, msg *amqp.Delivery, action MsgAction) error {
+func (dmh *DefaultMessageHandler) AfterHandle(
+    ctx context.Context,
+    msg *amqp.Delivery,
+    channel *amqp.Channel,
+    action MsgAction,
+) error {
     if dmh.AfterHandleFunc != nil {
-        return dmh.AfterHandleFunc(ctx, msg, action)
+        return dmh.AfterHandleFunc(ctx, channel, msg, action)
     }
 
     err := dmh.DoMsgAction(msg, action)
     if err != nil {
-        return fmt.Errorf("error while broker notify action: %s", err)
+        return fmt.Errorf("error while broker notify action: %w", err)
     }
 
     return nil
@@ -107,4 +113,9 @@ func (dmh *DefaultMessageHandler) DoMsgAction(msg *amqp.Delivery, action MsgActi
     }
 
     return
+}
+
+//NewDefaultMessageHandler - DefaultMessageHandler constructor with custom handle func as required value
+func NewDefaultMessageHandler(handleFunc HandleFunc) *DefaultMessageHandler {
+    return &DefaultMessageHandler{HandleFunc: handleFunc}
 }

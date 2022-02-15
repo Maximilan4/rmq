@@ -14,8 +14,6 @@ type (
         ctx context.Context
         // doneFunc - common function for context cancel
         doneFunc context.CancelFunc
-        // cfg - connection params
-        cfg *ConnectionCfg
         // constructor - closure, which creates a new amqp.Connection and stores it params in external context
         constructor AmqpConnectionConstructor
         // conn - stored amqp.Connection
@@ -27,22 +25,31 @@ type (
 )
 
 // NewDefaultConnection - creates new Connection instance with amqp.Dial method for connection inside
-func NewDefaultConnection(ctx context.Context, dsn string, cfg *ConnectionCfg) *Connection {
-    return NewConnection(ctx, cfg, func() (*amqp.Connection, error) {
+func NewDefaultConnection(ctx context.Context, dsn string) *Connection {
+    return NewConnection(ctx, func() (*amqp.Connection, error) {
         return amqp.Dial(dsn)
     })
 }
 
 // NewConnection - creates a new Connection
-func NewConnection(ctx context.Context, cfg *ConnectionCfg, constructor AmqpConnectionConstructor) *Connection {
+func NewConnection(ctx context.Context, constructor AmqpConnectionConstructor) *Connection {
     mainCtx, done := context.WithCancel(ctx)
 
     return &Connection{
         ctx:         mainCtx,
         doneFunc:    done,
         constructor: constructor,
-        cfg:         cfg,
     }
+}
+
+//Schema - creates a new schema object with new channel inside
+func (cn *Connection) Schema() (*Schema, error) {
+    channel, err := cn.Channel()
+    if err != nil {
+        return nil, err
+    }
+
+    return GetSchema(channel), nil
 }
 
 // Conn - connection getter

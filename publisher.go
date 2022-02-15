@@ -9,12 +9,14 @@ import (
     "time"
 )
 
+//PublishMessage - struct with params from amqp.Channel().Publish(...) method
 type PublishMessage struct {
     ExchangeName, RoutingKey string
     Mandatory, Immediate     bool
     Publishing               amqp.Publishing
 }
 
+//Publisher - struct of publisher
 type Publisher struct {
     connection *Connection
     pool       *puddle.Pool
@@ -47,6 +49,7 @@ func NewPublisher(connection *Connection, cfg *PublisherConfig) *Publisher {
     return publisher
 }
 
+//Init - runs background tasks and init a pool first element
 func (p *Publisher) Init() error {
     p.pool = puddle.NewPool(p.chanInit, p.chanClose, p.cfg.MaxChannelsCount)
     // init first idle channel

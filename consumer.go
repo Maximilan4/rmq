@@ -103,9 +103,9 @@ func (cnr *Consumer) StartWorker(ctx context.Context, params *ConsumeParams, han
         //message receiving
         case msg := <-deliveryChan:
             if cnr.cfg.Synchronous {
-                cnr.handleMsg(ctx, &msg, handler)
+                cnr.handleMsg(ctx, channel, &msg, handler)
             } else {
-                go cnr.handleMsg(ctx, &msg, handler)
+                go cnr.handleMsg(ctx, channel, &msg, handler)
             }
         // listener for amqp.Channel errors
         case notifyErr := <-channelErrors:
@@ -118,7 +118,7 @@ func (cnr *Consumer) StartWorker(ctx context.Context, params *ConsumeParams, han
 }
 
 // handleMsg just calls handler function with additional logs
-func (cnr *Consumer) handleMsg(ctx context.Context, msg *amqp.Delivery, handler MessageHandler) {
+func (cnr *Consumer) handleMsg(ctx context.Context, channel *amqp.Channel, msg *amqp.Delivery, handler MessageHandler) {
     logEntry := logrus.WithFields(logrus.Fields{
         "exchange":     msg.Exchange,
         "routing_key":  msg.RoutingKey,
@@ -127,7 +127,7 @@ func (cnr *Consumer) handleMsg(ctx context.Context, msg *amqp.Delivery, handler 
         "tag":          msg.ConsumerTag,
     })
 
-    if err := handler.Handle(ctx, msg); err != nil {
+    if err := handler.Handle(ctx, channel, msg); err != nil {
         logEntry.Errorf("msg handling err: %s", err)
     }
     logEntry.Info("message handled")
