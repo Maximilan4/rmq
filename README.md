@@ -1,4 +1,5 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/Maximilan4/rmq)](https://goreportcard.com/report/github.com/Maximilan4/rmq)
+[![Go Reference](https://pkg.go.dev/badge/github.com/Maximilan4/rmq.svg)](https://pkg.go.dev/github.com/Maximilan4/rmq)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](http://unlicense.org/)
 
 ## RMQ:
