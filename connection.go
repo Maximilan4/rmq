@@ -79,6 +79,7 @@ func (cn *Connection) Connect(ctx context.Context) error {
 		return err
 	}
 
+	logrus.Info("connection to rqm is established")
 	cn.conn = conn
 	go cn.background()
 	return nil
@@ -93,10 +94,13 @@ func (cn *Connection) background() {
 	for {
 		select {
 		case <-ctxDoneChan:
-			err := cn.conn.Close()
-			if err != nil {
-				logrus.Errorf("error while rmq conn closing: %s", err)
+			if !cn.conn.IsClosed() {
+				err := cn.conn.Close()
+				if err != nil {
+					logrus.Errorf("error while rmq conn closing: %s", err)
+				}
 			}
+
 			logrus.Errorf("connection to rmq is closed, reason: %s", cn.ctx.Err())
 			return
 		case err := <-notifyClose:
