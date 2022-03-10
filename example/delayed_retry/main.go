@@ -12,7 +12,7 @@ import (
 
 func main() {
 	ctx := context.Background()
-	connection := rmq.NewDefaultConnection(ctx, "amqp://test:test@localhost:5672")
+	connection := rmq.NewDefaultConnection(ctx, "amqp://actimium:actimium@localhost:12672")
 	err := connection.Connect(context.TODO())
 
 	if err != nil {
@@ -30,13 +30,14 @@ func main() {
 	}
 
 	// apply strategy to the current schema for working with rmq.DelayedRetryMessageHandler
-	err = schema.ApplyPresets(presets.NewDelayedRetryStrategyPreset(
-		"main_exchange",
-		"main",
-		&rmq.DeclareParams{Name: "main"},
-		nil,
-		nil,
-	),
+	err = schema.ApplyPresets(&presets.DelayedRetryStrategyPreset{
+		Queue: &rmq.DeclareParams{
+			Name:    "main",
+			Durable: true,
+		},
+		ExchangeName: "main_exchange",
+		RoutingKeys:  presets.RoutingKeys{MainQueueRK: "main"},
+	},
 	)
 
 	if err != nil {

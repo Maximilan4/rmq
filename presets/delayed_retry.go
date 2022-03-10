@@ -9,18 +9,25 @@ import (
 )
 
 // DelayedRetryStrategyPreset - creates a queue set for delayed msg handling retry
-type DelayedRetryStrategyPreset struct {
-	// Queue - main queue declare params, is required
-	Queue *rmq.DeclareParams
-	// DelayQueue - queue for storing messages, which will be sent to main q after expiration, not required
-	DelayQueue *rmq.DeclareParams
-	// FailedQueue - queue for storing messages, which has an error at handling after n retries
-	FailedQueue *rmq.DeclareParams
-	// ExchangeName - name of core exchange, which will has binds to all 3 queues
-	ExchangeName string
-	// QueueRoutingKey - main rk for bind, binds to delay and failed queues will be generated from this value
-	QueueRoutingKey string
-}
+type (
+	DelayedRetryStrategyPreset struct {
+		// Queue - main queue declare params, is required
+		Queue *rmq.DeclareParams
+		// DelayQueue - queue for storing messages, which will be sent to main q after expiration, not required
+		DelayQueue *rmq.DeclareParams
+		// FailedQueue - queue for storing messages, which has an error at handling after n retries
+		FailedQueue *rmq.DeclareParams
+		// ExchangeName - name of core exchange, which will has binds to all 3 queues
+		ExchangeName string
+		// RoutingKeys - main rk for bind, binds to delay and failed queues will be generated from this value
+		RoutingKeys RoutingKeys
+	}
+	RoutingKeys struct {
+		MainQueueRK    string
+		DelayedQueueRK string
+		FailedQueueRK  string
+	}
+)
 
 // Apply - applies preset
 func (drsp *DelayedRetryStrategyPreset) Apply(_ *amqp.Channel, schema *rmq.Schema) (err error) {
@@ -37,11 +44,20 @@ func (drsp *DelayedRetryStrategyPreset) Apply(_ *amqp.Channel, schema *rmq.Schem
 		drsp.FailedQueue = drsp.getQueueParamsCopy("failed")
 	}
 
-	failedRk := strings.Join([]string{drsp.QueueRoutingKey, "failed"}, ".")
-	delayRk := strings.Join([]string{drsp.QueueRoutingKey, "delay"}, ".")
+	if drsp.RoutingKeys.MainQueueRK == "" {
+		drsp.RoutingKeys.MainQueueRK = drsp.Queue.Name
+	}
 
-	drsp.setDeadLetterParams(drsp.Queue, drsp.ExchangeName, failedRk)
-	drsp.setDeadLetterParams(drsp.DelayQueue, drsp.ExchangeName, drsp.QueueRoutingKey)
+	if drsp.RoutingKeys.FailedQueueRK == "" {
+		drsp.RoutingKeys.FailedQueueRK = strings.Join([]string{drsp.RoutingKeys.MainQueueRK, "failed"}, ".")
+	}
+
+	if drsp.RoutingKeys.DelayedQueueRK == "" {
+		drsp.RoutingKeys.DelayedQueueRK = strings.Join([]string{drsp.RoutingKeys.MainQueueRK, "delay"}, ".")
+	}
+
+	drsp.setDeadLetterParams(drsp.Queue, drsp.ExchangeName, drsp.RoutingKeys.FailedQueueRK)
+	drsp.setDeadLetterParams(drsp.DelayQueue, drsp.ExchangeName, drsp.RoutingKeys.MainQueueRK)
 
 	err = schema.Queue.DeclareMulti(drsp.Queue, drsp.DelayQueue, drsp.FailedQueue)
 	if err != nil {
@@ -52,17 +68,17 @@ func (drsp *DelayedRetryStrategyPreset) Apply(_ *amqp.Channel, schema *rmq.Schem
 	err = schema.Queue.BindMulti(
 		&rmq.QueueBindParams{
 			Name:     drsp.Queue.Name,
-			Key:      drsp.QueueRoutingKey,
+			Key:      drsp.RoutingKeys.MainQueueRK,
 			Exchange: drsp.ExchangeName,
 		},
 		&rmq.QueueBindParams{
 			Name:     drsp.DelayQueue.Name,
-			Key:      delayRk,
+			Key:      drsp.RoutingKeys.DelayedQueueRK,
 			Exchange: drsp.ExchangeName,
 		},
 		&rmq.QueueBindParams{
 			Name:     drsp.FailedQueue.Name,
-			Key:      failedRk,
+			Key:      drsp.RoutingKeys.FailedQueueRK,
 			Exchange: drsp.ExchangeName,
 		},
 	)
@@ -101,15 +117,4 @@ func (drsp *DelayedRetryStrategyPreset) getQueueParamsCopy(postfix string) *rmq.
 		params.Args = argsCopy
 	}
 	return &params
-}
-
-// NewDelayedRetryStrategyPreset - DelayedRetryStrategyPreset constructor
-func NewDelayedRetryStrategyPreset(exchangeName, rk string, queue, delayQueue, failedQueue *rmq.DeclareParams) *DelayedRetryStrategyPreset {
-	return &DelayedRetryStrategyPreset{
-		Queue:           queue,
-		DelayQueue:      delayQueue,
-		FailedQueue:     failedQueue,
-		ExchangeName:    exchangeName,
-		QueueRoutingKey: rk,
-	}
 }
